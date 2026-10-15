@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>부산 수퍼마켓 매장 위치 지도</title>
+    <!-- Leaflet CSS CDN -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', 'Malgun Gothic', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-100 h-screen flex flex-col md:flex-row overflow-hidden">
+
+    <aside class="w-full md:w-96 bg-white border-r border-gray-200 flex flex-col h-1/2 md:h-full z-10 shadow-lg">
+        <header class="p-4 bg-slate-900 text-white shadow-md">
+            <h1 class="text-lg font-bold">부산 수퍼마켓 매장 안내</h1>
+            <p class="text-xs text-slate-400 mt-1">등록된 매장: <span id="store-count" class="font-semibold text-white">0</span>개소 (무료 오픈지도)</p>
+        </header>
+        
+        <div class="p-3 border-b border-gray-100 bg-gray-50">
+            <input type="text" id="search-input" placeholder="매장명 또는 주소 검색..." class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+
+        <!-- 매장 목록 리스트 -->
+        <div id="store-list" class="flex-1 overflow-y-auto p-3 space-y-2">
+            <!-- 자바스크립트로 동적 로드됨 -->
+        </div>
+    </aside>
+
+    <main class="flex-1 h-1/2 md:h-full relative">
+        <div id="map" class="w-full h-full z-0"></div>
+    </main>
+
+    <!-- Leaflet JS CDN -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    
+    <script>
+        const storeData = [
+            { name: "이마트 문현점", address: "부산광역시 남구 전포대로91번길 47", category: "슈퍼마켓", lat: 35.144317, lng: 129.064261 },
+            { name: "이마트사상점", address: "부산광역시 사상구 광장로 17", category: "슈퍼마켓", lat: 35.164234, lng: 128.978893 },
+            { name: "홈플러스도서문화비 센텀시티점", address: "부산광역시 해운대구 센텀동로 6", category: "슈퍼마켓", lat: 35.170915, lng: 129.133690 },
+            { name: "이마트24SMART오피스디포 부산점", address: "부산광역시 북구 만덕대로 72", category: "슈퍼마켓", lat: 35.211726, lng: 129.012789 },
+            { name: "이마트 해운대점", address: "부산광역시 해운대구 좌동순환로 511", category: "슈퍼마켓", lat: 35.166018, lng: 129.167372 },
+            { name: "이마트 연제점", address: "부산광역시 연제구 연수로 89", category: "슈퍼마켓", lat: 35.187312, lng: 129.081045 },
+            { name: "탑마트 감만점", address: "부산광역시 남구 우암로 50", category: "슈퍼마켓", lat: 35.124532, lng: 129.071234 },
+            { name: "메가마트 남천점", address: "부산광역시 수영구 남천동로 29", category: "슈퍼마켓", lat: 35.142100, lng: 129.111200 }
+        ];
+
+        document.getElementById('store-count').innerText = storeData.length;
+
+        // 부산 중심 좌표로 지도 초기화
+        const map = L.map('map').setView([35.1796, 129.0756], 13);
+
+        // API 키 없이 403 차단 없이 무료로 사용 가능한 CartoDB 타일 레이어 적용
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+            maxZoom: 19,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+            subdomains: 'abcd'
+        }).addTo(map);
+
+        const storeListEl = document.getElementById('store-list');
+        const markers = [];
+
+        function renderStores(data) {
+            storeListEl.innerHTML = '';
+            
+            // 기존 마커 제거
+            markers.forEach(m => map.removeLayer(m));
+            markers.length = 0;
+
+            if (data.length === 0) {
+                storeListEl.innerHTML = '<div class="text-center py-8 text-gray-400 text-sm">검색 결과가 없습니다.</div>';
+                return;
+            }
+
+            data.forEach((store) => {
+                // 지도 마커 추가
+                const marker = L.marker([store.lat, store.lng]).addTo(map);
+                marker.bindPopup(`
+                    <div class="p-1">
+                        <strong class="text-base text-slate-800">${store.name}</strong><br>
+                        <span class="text-xs text-gray-600 block mt-1">${store.address}</span>
+                        <span class="inline-block mt-2 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">${store.category}</span>
+                    </div>
+                `);
+                markers.push({ marker, store });
+
+                // 사이드바 아이템 생성
+                const item = document.createElement('div');
+                item.className = 'p-3 bg-white border border-gray-100 rounded-lg shadow-sm hover:bg-blue-50 hover:border-blue-200 cursor-pointer transition-all';
+                item.innerHTML = `
+                    <div class="font-semibold text-sm text-slate-800">${store.name}</div>
+                    <div class="text-xs text-gray-500 mt-1 truncate">${store.address}</div>
+                `;
+
+                // 클릭 시 해당 위치로 지도 이동 및 팝업 오픈
+                item.addEventListener('click', () => {
+                    map.setView([store.lat, store.lng], 16, { animate: true });
+                    marker.openPopup();
+                });
+
+                storeListEl.appendChild(item);
+            });
+        }
+
+        renderStores(storeData);
+
+        const searchInput = document.getElementById('search-input');
+        searchInput.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            const filtered = storeData.filter(s => 
+                s.name.toLowerCase().includes(query) || s.address.toLowerCase().includes(query)
+            );
+            renderStores(filtered);
+        });
+    </script>
+</body>
+</html>
